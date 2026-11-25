@@ -95,6 +95,7 @@ button.primary:active { transform: translateY(2px); box-shadow: 0 2px 0 #173f8f;
 .mbox .kinds button { padding: 12px 6px; border-radius: 12px; border: 2px solid #33415f; background: rgba(255,255,255,0.04); color: var(--ink); font-weight: 800; font-size: 15px; }
 .mbox .kinds button.on { border-color: var(--gold); background: rgba(255,205,0,0.14); }
 .mbox input, .mbox textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #33415f; background: #0a1020; color: var(--ink); font-size: 15px; font-family: inherit; }
+.mbox input[type="checkbox"] { width: auto; flex: none; margin-top: 3px; }
 .mbox textarea { min-height: 150px; resize: vertical; margin-top: 8px; font-family: Georgia, serif; line-height: 1.5; }
 .mbox .live { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0; padding: 10px; border-radius: 10px; background: rgba(224,49,49,0.12); border: 1px solid rgba(224,49,49,0.4); font-size: 14px; }
 .mbox .row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }

@@ -1,0 +1,13 @@
+{
+  "_note": "Songs used with permission. The audio files are NOT in the git repo: keep them in client/media locally, or upload them to the live server with scripts/upload-media.mjs.",
+  "songs": [
+    {
+      "file": "black-boy.mp3",
+      "title": "Black Boy",
+      "artist": "Coloured Stone",
+      "year": 1984,
+      "credit": "\"Black Boy\" by Coloured Stone (1984), used with permission.",
+      "plays": ["block", "march"]
+    }
+  ]
+}

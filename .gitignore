@@ -10,3 +10,6 @@ mobile/android/local.properties
 docs/node_modules/
 docs/render/
 docs/*.pptx
+
+# Licensed music: kept out of the public repo; upload to the server instead
+client/media/*.mp3

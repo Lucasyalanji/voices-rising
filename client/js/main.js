@@ -12,6 +12,7 @@ import { buildLandmarks } from './landmarks.js';
 import { Character, Crowd, TEAM, hashString } from './characters.js';
 import { canvasTexture } from './materials.js';
 import { LiveAudio } from './live.js';
+import { Music } from './music.js';
 import * as UI from './ui.js';
 
 const { $, el, toast, chatLine } = UI;
@@ -63,6 +64,7 @@ const me = { x: MAP.SPAWN.x, y: 0, z: MAP.SPAWN.z, vy: 0, yaw: Math.PI, char: nu
 const cam = { yaw: 0.15, pitch: 0.42, dist: 17 };
 let ws = null;
 let live = null;
+let music = null;
 const send = (m) => ws?.readyState === 1 && ws.send(JSON.stringify(m));
 
 // ---------------- Boot ----------------
@@ -70,6 +72,7 @@ async function boot() {
   const info = await fetch('/api/info').then((r) => r.json()).catch(() => null);
   if (info) {
     S.serverName = info.serverName; S.mainPublicUrl = info.mainPublicUrl; S.ice = info.ice; S.dev = info.dev; S.campaign = info.campaign;
+    music = new Music(info.songs || [], (text) => { toast(text, 'info', 6000); chatLine('', text, true); });
     $('#serverName').textContent = info.serverName;
   }
   await new Promise((r) => setTimeout(r, 30));
@@ -193,6 +196,7 @@ function onMsg(m) {
     case 'rtc': return live?.onSignal(m.from, m.data, S.stage.performer?.id === S.myId);
     case 'flagRaised': S.campaign.flagRaised = true; landmarks.flag.set(1, true); if (!m.quiet) toast('The Aboriginal flag flies over Parliament House!', 'blue', 8000); return;
     case 'finale': return runFinale(m);
+    case 'playlist': return;
   }
 }
 
@@ -395,6 +399,66 @@ $('#btnShare').addEventListener('click', sharePetition);
 $('#btnVote').addEventListener('click', () => send({ t: 'meeting' }));
 $('#btnMap').addEventListener('click', openBigMap);
 $('#btnHelp').addEventListener('click', openHelp);
+$('#btnMusic').addEventListener('click', openPlaylist);
+
+// ---------------- Music & community playlist ----------------
+async function openPlaylist() {
+  const box = UI.openModal([el('h2', { text: '♫ Music' }), el('p', { text: 'Loading the playlist…' })]);
+  let data;
+  try { data = await fetch('/songs').then((r) => r.json()); } catch { box.querySelector('p').textContent = 'Could not load the playlist. Try again in a moment.'; return; }
+  box.innerHTML = '';
+  const ambient = el('input', { type: 'checkbox', id: 'music-ambient' });
+  ambient.checked = !!music?.enabled;
+  ambient.addEventListener('change', () => music?.setEnabled(ambient.checked));
+  const row = (song) => {
+    const playing = music?.manual?.url === song.url;
+    const b = el('button', { text: playing ? '■ Stop' : '▶ Play', onclick: () => { if (music?.manual?.url === song.url) music.stopNow(); else music?.playNow(song); openPlaylist(); } });
+    const kids = [el('div', { style: 'min-width:0' }, el('b', { text: song.title }), el('div', { class: 'muted', style: 'font-size:13px', text: (song.artist || '') + (song.year ? ' (' + song.year + ')' : '') + (song.community ? ' · shared by ' + song.by : '') })), b];
+    if (song.community) kids.push(el('button', { text: '⚑', title: 'Report this song', onclick: () => { send({ t: 'songReport', id: song.id }); } }));
+    return el('div', { class: 'vote-list', style: 'grid-template-columns:minmax(0,1fr) auto auto;display:grid;gap:8px;align-items:center;margin:6px 0' }, ...kids);
+  };
+  box.append(
+    el('h2', { text: '♫ Music' }),
+    el('label', { class: 'live', style: 'background:transparent;border-color:#33415f' }, ambient, el('span', { text: 'Play music in the world: by the Elders’ fire at The Block, and when you walk with a march.' })),
+    el('h3', { text: 'Voices Rising songs' }),
+    ...(data.official.length ? data.official.map(row) : [el('p', { text: 'No songs on this server yet.' })]),
+    ...(data.official.filter((s) => s.credit).map((s) => el('p', { class: 'muted', style: 'font-size:12px', text: s.credit }))),
+    el('h3', { text: 'Community playlist' }),
+    ...(data.community.length ? data.community.map(row) : [el('p', { text: 'No community songs yet. Be the first to share one.' })]),
+  );
+  // Upload form
+  const file = el('input', { type: 'file', id: 'song-file', accept: 'audio/mpeg,.mp3' });
+  const title = el('input', { id: 'song-title', placeholder: 'Song title', maxlength: 60 });
+  const artist = el('input', { id: 'song-artist', placeholder: 'Artist (you, your band or mob)', maxlength: 60, style: 'margin-top:8px' });
+  const rights = el('input', { type: 'checkbox', id: 'song-rights' });
+  const msg = el('p', { role: 'status', style: 'min-height:20px;font-weight:700' });
+  const go = el('button', { class: 'go', text: 'Share my song', onclick: async () => {
+    msg.textContent = '';
+    if (!S.metElders) { msg.textContent = 'Yarn with the Elders at The Block before sharing music.'; return; }
+    const f = file.files[0];
+    if (!f) { msg.textContent = 'Choose an MP3 file first.'; return; }
+    if (f.size > 15 * 1024 * 1024) { msg.textContent = 'Songs can be up to 15 MB.'; return; }
+    if (!title.value.trim()) { msg.textContent = 'Give your song a title.'; return; }
+    if (!rights.checked) { msg.textContent = 'Please tick the box to confirm you can share this song.'; return; }
+    go.disabled = true; go.textContent = 'Uploading…';
+    try {
+      const q = new URLSearchParams({ title: title.value.trim(), artist: artist.value.trim() });
+      const r = await fetch('/songs/upload?' + q, { method: 'POST', headers: { 'x-player-token': S.token, 'x-rights': 'yes', 'Content-Type': 'audio/mpeg' }, body: f });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Upload failed');
+      msg.textContent = d.message; file.value = ''; title.value = ''; artist.value = ''; rights.checked = false;
+    } catch (e) { msg.textContent = e.message; }
+    go.disabled = false; go.textContent = 'Share my song';
+  } });
+  box.append(
+    el('h3', { text: 'Share your own song' }),
+    el('p', { text: 'Upload an MP3 (up to 15 MB) of your own music.' + (data.needsApproval ? ' A moderator checks every song before others can hear it.' : '') }),
+    file, title, artist,
+    el('label', { class: 'live' }, rights, el('span', { text: 'I made this song, or I have permission from everyone who owns it (writers, performers and label) to share it in Voices Rising.' })),
+    el('div', { class: 'row' }, el('button', { text: 'Close', onclick: UI.closeModal }), go),
+    msg,
+  );
+}
 // In the Android app, let players go back to the server picker.
 if (navigator.userAgent.includes('VoicesRisingApp')) {
   $('#btnServer').hidden = false;
@@ -993,6 +1057,7 @@ function frame(now) {
     f.s.material.opacity = Math.max(0, 1 - age / 2.2);
     if (age > 2.2) { scene.remove(f.s); f.s.material.map.dispose(); floaters.splice(i, 1); }
   }
+  music?.update(dt, { me, march: S.march, stageBusy: !!S.stage.performer && !amPerforming(), playing: S.playing });
   updateCrowds(t);
   updateCamera(dt, t);
   const focus = S.playing ? me : { x: 0, z: -60 };

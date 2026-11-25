@@ -2,6 +2,8 @@
 // Runs the realtime 3D world: rallies, red spies, Yarning Circle votes, marches, the Town Hall stage
 // (with WebRTC live-audio signalling) and the Parliament flag finale.
 import http from 'node:http';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import { ROOT, loadEnv, sendJson, readBody, serveStatic, clean, clientIp } from '../shared/server-util.js';
@@ -546,6 +548,7 @@ const handlers = {
     const needed = Math.max(1, Math.min(RULES.STAGE_REPORTS_TO_CUT, Math.ceil(s.listeners.size / 2)));
     if (s.reporters.size >= needed) finishPerformance(false, '⏸ The performance was paused after reports from the crowd. Moderators will review it.');
   },
+  songReport(p, m) { if (typeof m.id === 'string') reportSong(p, m.id, m.reason); },
   reportPlayer(p, m) {
     const target = players.get(Number(m.id));
     if (!target) return;
@@ -598,9 +601,130 @@ function proxyToMain(req, res, url) {
   req.pipe(up);
 }
 
+// ---------------- Licensed music ----------------
+// Song details live in client/media/songs.json (in git); the audio files do not. They are served from
+// the data disk (DATA_DIR/media, uploaded with scripts/upload-media.mjs) or, locally, from client/media.
+const MEDIA_DIRS = [path.resolve(ROOT, env.DATA_DIR || 'data', 'media'), path.join(CLIENT, 'media')];
+const mediaPath = (file) => MEDIA_DIRS.map((d) => path.join(d, file)).find((f) => fs.existsSync(f));
+function songList() {
+  try {
+    const { songs = [] } = JSON.parse(fs.readFileSync(path.join(CLIENT, 'media', 'songs.json'), 'utf8'));
+    return songs.filter((s) => /^[a-z0-9-]+\.mp3$/.test(s.file) && mediaPath(s.file)).map((s) => ({ ...s, url: `/media/${s.file}` }));
+  } catch { return []; }
+}
+function serveMedia(req, res, file) {
+  const f = /^[a-z0-9-]+\.mp3$/.test(file) && mediaPath(file);
+  if (!f) return sendJson(res, 404, { error: 'Not found' });
+  const size = fs.statSync(f).size;
+  const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
+  const head = { 'Content-Type': 'audio/mpeg', 'Accept-Ranges': 'bytes', 'Cache-Control': 'public, max-age=86400' };
+  if (range) {
+    const start = range[1] ? Number(range[1]) : 0, end = range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+    res.writeHead(206, { ...head, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
+    return fs.createReadStream(f, { start, end }).pipe(res);
+  }
+  res.writeHead(200, { ...head, 'Content-Length': size });
+  fs.createReadStream(f).pipe(res);
+}
+async function uploadMedia(req, res, url) {
+  if (!env.ADMIN_KEY || req.headers['x-admin-key'] !== env.ADMIN_KEY) return sendJson(res, 401, { error: 'Bad admin key' });
+  const name = url.searchParams.get('name') || '';
+  if (!/^[a-z0-9-]+\.mp3$/.test(name)) return sendJson(res, 400, { error: 'Name must look like black-boy.mp3' });
+  const chunks = []; let size = 0;
+  for await (const c of req) { size += c.length; if (size > 30 * 1024 * 1024) return sendJson(res, 413, { error: 'File over 30 MB' }); chunks.push(c); }
+  fs.mkdirSync(MEDIA_DIRS[0], { recursive: true });
+  fs.writeFileSync(path.join(MEDIA_DIRS[0], name), Buffer.concat(chunks));
+  sendJson(res, 201, { ok: true, name, bytes: size, songs: songList().map((s) => s.title) });
+}
+
+// ---------------- Community playlist (player uploads) ----------------
+// Players who have met the Elders can upload their own MP3s. Each upload needs a rights confirmation,
+// waits for a moderator's approval before anyone else hears it, and is hidden after 3 reports.
+const COMMUNITY_DIR = path.join(MEDIA_DIRS[0], 'community');
+const COMMUNITY_DB = path.join(COMMUNITY_DIR, 'songs.json');
+const NEEDS_APPROVAL = env.SONGS_NEED_APPROVAL !== '0';
+const loadCommunity = () => { try { return JSON.parse(fs.readFileSync(COMMUNITY_DB, 'utf8')); } catch { return []; } };
+const saveCommunity = (list) => { fs.mkdirSync(COMMUNITY_DIR, { recursive: true }); fs.writeFileSync(COMMUNITY_DB, JSON.stringify(list, null, 1)); };
+const publicSong = (s) => ({ id: s.id, title: s.title, artist: s.artist, by: s.byName, url: `/media/community/${s.id}.mp3`, community: true });
+const uploadsToday = new Map(); // userId -> {day, n}
+
+async function playerFromToken(req) {
+  const token = req.headers['x-player-token'];
+  if (!token) return null;
+  const { status, data } = await mainApi('/api/server/verify', { token }).catch(() => ({ status: 0 }));
+  return status === 200 ? data.profile : null;
+}
+async function communityUpload(req, res, url) {
+  const prof = await playerFromToken(req);
+  if (!prof) return sendJson(res, 401, { error: 'Please log in again to upload.' });
+  const online = [...players.values()].find((p) => p.userId === prof.id);
+  if (!prof.metElders && !online?.metElders) return sendJson(res, 403, { error: 'Yarn with the Elders at The Block before sharing music.' });
+  if (req.headers['x-rights'] !== 'yes') return sendJson(res, 400, { error: 'Please confirm you made this song or have permission to share it.' });
+  const day = new Date().toISOString().slice(0, 10), u = uploadsToday.get(prof.id);
+  if (u && u.day === day && u.n >= 3) return sendJson(res, 429, { error: 'You can share up to 3 songs a day.' });
+  const title = clean(url.searchParams.get('title'), 60), artist = clean(url.searchParams.get('artist'), 60);
+  if (title.length < 1) return sendJson(res, 400, { error: 'Give your song a title.' });
+  const chunks = []; let size = 0;
+  for await (const c of req) { size += c.length; if (size > 15 * 1024 * 1024) return sendJson(res, 413, { error: 'Songs can be up to 15 MB.' }); chunks.push(c); }
+  const buf = Buffer.concat(chunks);
+  const isMp3 = buf.length > 1024 && (buf.slice(0, 3).toString() === 'ID3' || (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0));
+  if (!isMp3) return sendJson(res, 400, { error: 'That file isn\'t an MP3.' });
+  const id = crypto.randomBytes(8).toString('hex');
+  fs.mkdirSync(COMMUNITY_DIR, { recursive: true });
+  fs.writeFileSync(path.join(COMMUNITY_DIR, `${id}.mp3`), buf);
+  const list = loadCommunity();
+  list.push({ id, title, artist: artist || prof.displayName, byId: prof.id, byName: prof.displayName, status: NEEDS_APPROVAL ? 'pending' : 'approved', reports: [], at: new Date().toISOString(), bytes: size });
+  saveCommunity(list);
+  uploadsToday.set(prof.id, { day, n: (u && u.day === day ? u.n : 0) + 1 });
+  if (!NEEDS_APPROVAL) broadcast({ t: 'playlist' });
+  sendJson(res, 201, { ok: true, status: NEEDS_APPROVAL ? 'pending' : 'approved',
+    message: NEEDS_APPROVAL ? 'Thanks! A moderator will check your song, then everyone can hear it.' : 'Your song is on the playlist!' });
+}
+function communityAdmin(req, res, url) {
+  if (!env.ADMIN_KEY || req.headers['x-admin-key'] !== env.ADMIN_KEY) return sendJson(res, 401, { error: 'Bad admin key' });
+  const list = loadCommunity();
+  if (req.method === 'GET') return sendJson(res, 200, { songs: list });
+  const s = list.find((x) => x.id === url.searchParams.get('id'));
+  if (!s) return sendJson(res, 404, { error: 'No such song' });
+  const action = url.searchParams.get('action');
+  if (action === 'approve') s.status = 'approved';
+  else if (action === 'hide') s.status = 'hidden';
+  else if (action === 'delete') { s.status = 'deleted'; fs.rmSync(path.join(COMMUNITY_DIR, `${s.id}.mp3`), { force: true }); }
+  else return sendJson(res, 400, { error: 'action must be approve, hide or delete' });
+  saveCommunity(list);
+  broadcast({ t: 'playlist' });
+  sendJson(res, 200, { ok: true, song: s });
+}
+function servePlaylist(res) {
+  sendJson(res, 200, { official: songList(), community: loadCommunity().filter((s) => s.status === 'approved').map(publicSong), needsApproval: NEEDS_APPROVAL });
+}
+function serveCommunitySong(req, res, id) {
+  const s = /^[a-f0-9]{16}$/.test(id) && loadCommunity().find((x) => x.id === id && x.status === 'approved');
+  if (!s) return sendJson(res, 404, { error: 'Not found' });
+  const f = path.join(COMMUNITY_DIR, `${id}.mp3`);
+  if (!fs.existsSync(f)) return sendJson(res, 404, { error: 'Not found' });
+  res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': fs.statSync(f).size, 'Cache-Control': 'public, max-age=3600' });
+  fs.createReadStream(f).pipe(res);
+}
+function reportSong(p, id, reason) {
+  const list = loadCommunity(), s = list.find((x) => x.id === id);
+  if (!s || s.reports.includes(p.userId)) return;
+  s.reports.push(p.userId);
+  if (s.reports.length >= 3 && s.status === 'approved') { s.status = 'hidden'; broadcast({ t: 'playlist' }); }
+  saveCommunity(list);
+  mainApi('/api/server/abuse', { reporterId: p.userId, targetId: s.byId, context: 'song', detail: clean(`${s.title}: ${reason || ''}`, 300), serverName: NAME }).catch(() => {});
+  send(p, { t: 'toast', text: 'Thanks, moderators will check that song.', kind: 'info' });
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (PROXY_MAIN && MAIN_PUBLIC_ROUTES.some((r) => r.test(url.pathname))) return proxyToMain(req, res, url);
+  if (req.method === 'GET' && url.pathname.startsWith('/media/community/')) return serveCommunitySong(req, res, url.pathname.slice(17).replace(/\.mp3$/, ''));
+  if (req.method === 'GET' && url.pathname.startsWith('/media/') && url.pathname.endsWith('.mp3')) return serveMedia(req, res, url.pathname.slice(7));
+  if (req.method === 'POST' && url.pathname === '/media-upload') return uploadMedia(req, res, url);
+  if (req.method === 'GET' && url.pathname === '/songs') return servePlaylist(res);
+  if (req.method === 'POST' && url.pathname === '/songs/upload') return communityUpload(req, res, url);
+  if (url.pathname === '/songs/admin') return communityAdmin(req, res, url);
   try {
     if (req.method === 'POST' && (url.pathname === '/auth/login' || url.pathname === '/auth/register')) {
       const body = await readBody(req);
@@ -609,7 +733,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/info') {
       // CORS so the Android app's start screen can check the server before loading it
-      return sendJson(res, 200, { serverName: NAME, mainPublicUrl: MAIN_PUBLIC, ice: ICE, dev: DEV, players: players.size, campaign, rules: RULES }, { 'Access-Control-Allow-Origin': '*' });
+      return sendJson(res, 200, { serverName: NAME, mainPublicUrl: MAIN_PUBLIC, ice: ICE, dev: DEV, players: players.size, campaign, rules: RULES, songs: songList() }, { 'Access-Control-Allow-Origin': '*' });
     }
     if (url.pathname.startsWith('/shared/')) {
       const f = url.pathname.slice(7);
