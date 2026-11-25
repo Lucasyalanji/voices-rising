@@ -9,7 +9,7 @@ import { toLatLon } from '/shared/geo.js';
 import { RULES, politicianName } from '/shared/rules.js';
 import { buildWorld } from './world.js';
 import { buildLandmarks } from './landmarks.js';
-import { Character, Crowd, TEAM, hashString } from './characters.js';
+import { Character, Crowd, TEAM, hashString, LOOK } from './characters.js';
 import { canvasTexture } from './materials.js';
 import { LiveAudio } from './live.js';
 import { Music } from './music.js';
@@ -180,7 +180,8 @@ function onMsg(m) {
       c?.say(m.text, 5);
       return;
     }
-    case 'pjoin': S.people.set(m.id, { name: m.name, username: m.username }); return chatLine('', `${m.name} joined the City.`, true);
+    case 'avatar': return applyAvatar(m.id, m.avatar);
+    case 'pjoin': S.people.set(m.id, { name: m.name, username: m.username, avatar: m.avatar }); return chatLine('', `${m.name} joined the City.`, true);
     case 'pleave': {
       const o = S.others.get(m.id);
       if (o) { o.char.dispose(); S.others.delete(m.id); }
@@ -212,7 +213,10 @@ function welcome(m) {
   S.people.clear();
   for (const p of m.players) S.people.set(p.id, p);
   me.x = m.you.x; me.z = m.you.z; me.y = 0;
-  if (!me.char) { me.char = new Character({ seed: hashString(S.username), name: S.name }); scene.add(me.char.root); }
+  S.avatar = m.you.profile.avatar || null;
+  me.char?.dispose();
+  me.char = new Character({ seed: hashString(S.username), name: S.name, avatar: S.avatar });
+  scene.add(me.char.root);
   me.char.setName(S.name, '#ffcd00');
   live?.stopMic(); live?.stopListening();
   live = new LiveAudio(send, S.ice);
@@ -222,6 +226,7 @@ function welcome(m) {
   $('#hud').hidden = false;
   S.playing = true;
   chatLine('', `Welcome to ${S.serverName}, ${S.name}.`, true);
+  if (!S.avatar) setTimeout(() => { if (!UI.modalOpen() && !UI.dialogueOpen()) openLook(true); }, 1200);
   if (!S.metElders) toast('Head to the fire at The Block — the Elders want to yarn with you. (Walk with WASD, press E)', 'blue', 9000);
   if (m.meeting) openVote(m.meeting);
   if (S.dev) chatLine('', 'DEV server: try /sigs 100, /sup 1000, /tp 2, /red, /reset', true);
@@ -248,7 +253,7 @@ function snap(m) {
     let o = S.others.get(id);
     const info = S.people.get(id) || { name: 'Player', username: String(id) };
     if (!o) {
-      o = { char: new Character({ seed: hashString(info.username), name: info.name }), x, y, z, r, a, f: -1 };
+      o = { char: new Character({ seed: hashString(info.username), name: info.name, avatar: info.avatar }), x, y, z, r, a, f: -1 };
       o.char.root.position.set(x, y, z);
       scene.add(o.char.root);
       S.others.set(id, o);
@@ -406,6 +411,111 @@ $('#btnVote').addEventListener('click', () => send({ t: 'meeting' }));
 $('#btnMap').addEventListener('click', openBigMap);
 $('#btnHelp').addEventListener('click', openHelp);
 $('#btnMusic').addEventListener('click', openPlaylist);
+$('#btnLook').addEventListener('click', () => openLook(false));
+
+// ---------------- Choose your look ----------------
+// Rebuild a character when its look changes (keeps its place in the world).
+function applyAvatar(id, avatar) {
+  if (id === S.myId) {
+    S.avatar = avatar;
+    const old = me.char;
+    me.char = new Character({ seed: hashString(S.username), name: S.name, avatar });
+    me.char.setShirt(S.role === 'red' ? TEAM.red : TEAM.blue);
+    me.char.setName(S.name, '#ffcd00');
+    me.char.root.position.set(me.x, me.y, me.z);
+    scene.add(me.char.root);
+    old?.dispose();
+    return;
+  }
+  const info = S.people.get(id);
+  if (info) info.avatar = avatar;
+  const o = S.others.get(id);
+  if (!o) return;
+  const pos = o.char.root.position.clone(), rot = o.char.root.rotation.y;
+  o.char.dispose();
+  o.char = new Character({ seed: hashString(info?.username || String(id)), name: info?.name, avatar });
+  o.char.root.position.copy(pos); o.char.root.rotation.y = rot;
+  o.f = -1; // re-apply shirt colour and name tag on the next update
+  scene.add(o.char.root);
+}
+
+function openLook(firstTime) {
+  const look = { ...(S.avatar || { skin: 4, hair: 0, hairStyle: 0, cap: 0, pants: 0, shoes: 0 }) };
+  const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+
+  // live 3D preview that turns slowly
+  const canvas = el('canvas', { width: 240, height: 280, style: 'display:block;margin:0 auto;border-radius:14px;background:#1b2a48;max-width:100%' });
+  const pr = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  pr.setPixelRatio(Math.min(devicePixelRatio, 2));
+  pr.setSize(240, 280, false);
+  const ps = new THREE.Scene();
+  ps.add(new THREE.HemisphereLight(0xdcefff, 0x6b5a45, 1.6));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(3, 5, 4); ps.add(sun);
+  const pc = new THREE.PerspectiveCamera(32, 240 / 280, 0.1, 50); pc.position.set(0, 1.3, 7.6); pc.lookAt(0, 1.05, 0);
+  let model = null;
+  const rebuild = () => {
+    const rot = model ? model.root.rotation.y : 0.4;
+    if (model) ps.remove(model.root);
+    model = new Character({ seed: 1, avatar: look });
+    model.setShirt(TEAM.blue);
+    model.root.rotation.y = rot;
+    ps.add(model.root);
+  };
+  rebuild();
+  let last = performance.now();
+  const spin = (now) => {
+    if (!canvas.isConnected && performance.now() - opened > 500) { pr.dispose(); return; } // panel closed
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    model.root.rotation.y += dt * 0.6;
+    model.update(dt, 0, 'idle');
+    pr.render(ps, pc);
+    requestAnimationFrame(spin);
+  };
+  const opened = performance.now();
+  requestAnimationFrame(spin);
+
+  const ring = (on) => '3px solid ' + (on ? '#ffcd00' : 'rgba(255,255,255,.25)');
+  const swatches = (label, key, colours) => el('div', { style: 'margin:10px 0' },
+    el('b', { text: label, style: 'display:block;font-size:13px;margin-bottom:6px' }),
+    el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px' }, ...colours.map((c, i) => {
+      const b = el('button', { type: 'button', 'aria-label': label + ' option ' + (i + 1), title: label + ' ' + (i + 1),
+        style: 'width:34px;height:34px;border-radius:50%;cursor:pointer;padding:0;background:' + hex(c) + ';border:' + ring(look[key] === i) });
+      b.addEventListener('click', () => { look[key] = i; [...b.parentElement.children].forEach((x, j) => (x.style.border = ring(j === i))); rebuild(); });
+      return b;
+    })));
+  const styles = el('div', { style: 'margin:10px 0' }, el('b', { text: 'Hairstyle', style: 'display:block;font-size:13px;margin-bottom:6px' }),
+    el('div', { class: 'kinds', style: 'grid-template-columns:repeat(3,minmax(0,1fr))' }, ...LOOK.hairStyleNames.map((n, i) => {
+      const b = el('button', { type: 'button', class: look.hairStyle === i ? 'on' : '', text: n });
+      b.addEventListener('click', () => { look.hairStyle = i; [...b.parentElement.children].forEach((x, j) => x.classList.toggle('on', j === i)); rebuild(); });
+      return b;
+    })));
+  const msg = el('p', { role: 'status', style: 'min-height:20px;font-weight:700' });
+  const save = el('button', { class: 'go', text: 'Save my look', onclick: async () => {
+    save.disabled = true; msg.textContent = '';
+    try {
+      const r = await fetch('/me/avatar', { method: 'POST', headers: { 'content-type': 'application/json', 'x-player-token': S.token }, body: JSON.stringify({ avatar: look }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not save your look');
+      applyAvatar(S.myId, d.avatar);
+      UI.closeModal();
+      toast('Looking deadly! Your look is saved to your profile.', 'blue');
+    } catch (e) { msg.textContent = e.message; save.disabled = false; }
+  } });
+  UI.openModal([
+    el('h2', { text: firstTime ? '👤 Make your character' : '👤 My look' }),
+    el('p', { text: 'Choose how you look in the city. Everyone wears the movement’s blue hoodie, so the Reds can hide among you.' }),
+    canvas,
+    swatches('Skin', 'skin', LOOK.skin),
+    styles,
+    swatches('Hair colour', 'hair', LOOK.hair),
+    swatches('Cap colour', 'cap', LOOK.cap),
+    swatches('Pants', 'pants', LOOK.pants),
+    swatches('Shoes', 'shoes', LOOK.shoes),
+    el('div', { class: 'row' }, el('button', { text: firstTime ? 'Maybe later' : 'Cancel', onclick: UI.closeModal }), save),
+    msg,
+  ]);
+}
+
 
 // ---------------- Music & community playlist ----------------
 async function openPlaylist() {

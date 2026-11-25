@@ -95,6 +95,23 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 `);
 
+// Older databases: add the avatar column (a player's chosen look, stored as JSON).
+try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT ''"); } catch {}
+
+// A look is a set of small numbers that index the palettes in client/js/characters.js.
+const AVATAR_LIMITS = { skin: 9, hair: 8, hairStyle: 6, cap: 4, pants: 7, shoes: 4 };
+function cleanAvatar(a) {
+  if (!a || typeof a !== 'object') return null;
+  const out = {};
+  for (const [k, max] of Object.entries(AVATAR_LIMITS)) {
+    const v = Number(a[k]);
+    if (!Number.isInteger(v) || v < 0 || v >= max) return null;
+    out[k] = v;
+  }
+  return out;
+}
+const parseAvatar = (t) => { try { return t ? cleanAvatar(JSON.parse(t)) : null; } catch { return null; } };
+
 const kvGet = db.prepare('SELECT value FROM campaign WHERE key = ?');
 const kvSet = db.prepare('INSERT INTO campaign(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
 const kvAdd = db.prepare('INSERT INTO campaign(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = MAX(0, value + excluded.value)');
@@ -143,7 +160,7 @@ function profile(u) {
     homeServer: u.home_server, metElders: !!u.met_elders, culturePoints: u.culture_points,
     supportersRecruited: u.supporters_recruited, spiesCaught: u.spies_caught, sabotages: u.sabotages,
     performances: u.performances, gamesPlayed: u.games_played, signaturesReferred: refCount.get(u.username).n,
-    createdAt: u.created_at,
+    createdAt: u.created_at, avatar: parseAvatar(u.avatar),
   };
 }
 
@@ -203,8 +220,13 @@ const routes = {
   'PATCH /api/profile': async (req, body) => {
     const u = authUser(req);
     if (!u) return [401, { error: 'Not logged in' }];
+    const av = body.avatar === undefined ? undefined : cleanAvatar(body.avatar);
+    if (av === null) return [400, { error: 'That look has an option we do not recognise.' }];
     db.prepare('UPDATE users SET display_name = ?, mob = ?, bio = ? WHERE id = ?').run(
       clean(body.displayName ?? u.display_name, 24) || u.display_name, clean(body.mob ?? u.mob, 60), clean(body.bio ?? u.bio, 280), u.id);
+    if (av) {
+      db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(JSON.stringify(av), u.id);
+    }
     return [200, { profile: profile(getUser.get(u.id)) }];
   },
 

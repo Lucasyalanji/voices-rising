@@ -6,9 +6,21 @@ import { mulberry32 } from './world.js';
 
 export const TEAM = { blue: 0x2f7bff, red: 0xe03131 };
 const SKIN = [0x4a2e1f, 0x5a3825, 0x6b4430, 0x7d5038, 0x8d5a3b, 0xa06a45, 0xb97f55, 0xd29a6c, 0xe8b98e];
-const HAIR = [0x141012, 0x1e1612, 0x2c1d14, 0x4a2e1c, 0x111111, 0x6b4a2a];
+const HAIR = [0x141012, 0x1e1612, 0x2c1d14, 0x4a2e1c, 0x111111, 0x6b4a2a, 0x9a3b1e, 0xb9b4ac];
 const PANTS = [0x2b2d3a, 0x3b3f52, 0x1f2a44, 0x4d4339, 0x2a2a2a, 0x5a4b6b, 0x3d5a80];
 const SHOES = [0xf2f2f2, 0x1a1a1a, 0xd9d9d9, 0x8b5a2b];
+const STYLES = ['short', 'long', 'bun', 'cap', 'curly', 'braids'];
+const CAPS = [0x111111, 0xffcd00, 0xd4202a, 0xffffff];
+// The options a player can choose for their look (indices are what the profile stores).
+export const LOOK = {
+  skin: SKIN, hair: HAIR, pants: PANTS, shoes: SHOES, cap: CAPS,
+  hairStyle: STYLES, hairStyleNames: ['Short', 'Long', 'Bun', 'Cap', 'Curly', 'Braids'],
+};
+// Turn a saved look ({skin, hair, hairStyle, cap, pants, shoes} as indices) into colours and a style.
+export function lookFromAvatar(av) {
+  if (!av) return null;
+  return { skin: SKIN[av.skin], hair: HAIR[av.hair], style: STYLES[av.hairStyle], capColor: CAPS[av.cap], pants: PANTS[av.pants], shoes: SHOES[av.shoes] };
+}
 
 // Geometry (shared). Short, chunky "chibi" proportions (big head) like the first version; total figure ≈ 2.6.
 const G = {
@@ -69,8 +81,8 @@ export function appearance(seed) {
     hair: HAIR[Math.floor(r() * HAIR.length)],
     pants: PANTS[Math.floor(r() * PANTS.length)],
     shoes: SHOES[Math.floor(r() * SHOES.length)],
-    style: ['short', 'long', 'bun', 'cap', 'curly', 'braids'][Math.floor(r() * 6)],
-    capColor: [0x111111, 0xffcd00, 0xd4202a, 0xffffff][Math.floor(r() * 4)],
+    style: STYLES[Math.floor(r() * 6)],
+    capColor: CAPS[Math.floor(r() * 4)],
     build: 0.92 + r() * 0.16, // shoulder/hip width
     height: 0.94 + r() * 0.12,
   };
@@ -83,8 +95,8 @@ export function hashString(s) {
 }
 
 export class Character {
-  constructor({ seed = 1, shirt = TEAM.blue, kind = 'youth', name = '' } = {}) {
-    const a = appearance(seed);
+  constructor({ seed = 1, shirt = TEAM.blue, kind = 'youth', name = '', avatar = null } = {}) {
+    const a = { ...appearance(seed), ...(lookFromAvatar(avatar) || {}) };
     this.kind = kind;
     this.root = new THREE.Group();
     this.body = new THREE.Group();

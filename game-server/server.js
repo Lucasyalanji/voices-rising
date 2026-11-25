@@ -637,6 +637,21 @@ async function uploadMedia(req, res, url) {
   sendJson(res, 201, { ok: true, name, bytes: size, songs: songList().map((s) => s.title) });
 }
 
+// ---------------- Player looks ----------------
+// Saves the player's chosen look on their main-server profile, then shows it to everyone in the city.
+async function saveAvatar(req, res) {
+  const token = req.headers['x-player-token'];
+  if (!token) return sendJson(res, 401, { error: 'Please log in again.' });
+  let body;
+  try { body = await readBody(req); } catch { return sendJson(res, 400, { error: 'Invalid request' }); }
+  const r = await fetch(MAIN + '/api/profile', { method: 'PATCH', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify({ avatar: body.avatar }), signal: AbortSignal.timeout(8000) }).catch(() => null);
+  const data = r ? await r.json().catch(() => ({})) : { error: 'The profile server is not answering.' };
+  if (!r || !r.ok) return sendJson(res, r?.status || 502, { error: data.error || 'Could not save your look.' });
+  const avatar = data.profile.avatar;
+  for (const p of players.values()) if (p.userId === data.profile.id) { p.avatar = avatar; broadcast({ t: 'avatar', id: p.id, avatar }); }
+  sendJson(res, 200, { ok: true, avatar });
+}
+
 // ---------------- Community playlist (player uploads) ----------------
 // Players who have met the Elders can upload their own MP3s. Each upload needs a rights confirmation,
 // waits for a moderator's approval before anyone else hears it, and is hidden after 3 reports.
@@ -722,6 +737,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname.startsWith('/media/community/')) return serveCommunitySong(req, res, url.pathname.slice(17).replace(/\.mp3$/, ''));
   if (req.method === 'GET' && url.pathname.startsWith('/media/') && url.pathname.endsWith('.mp3')) return serveMedia(req, res, url.pathname.slice(7));
   if (req.method === 'POST' && url.pathname === '/media-upload') return uploadMedia(req, res, url);
+  if (req.method === 'POST' && url.pathname === '/me/avatar') return saveAvatar(req, res);
   if (req.method === 'GET' && url.pathname === '/songs') return servePlaylist(res);
   if (req.method === 'POST' && url.pathname === '/songs/upload') return communityUpload(req, res, url);
   if (url.pathname === '/songs/admin') return communityAdmin(req, res, url);
@@ -764,17 +780,17 @@ wss.on('connection', async (ws, req) => {
   const p = {
     id: nextId++, ws, userId: prof.id, name: prof.displayName, username: prof.username, profile: prof,
     x: MAP.SPAWN.x + rand(-4, 4), y: 0, z: MAP.SPAWN.z + rand(-4, 4), r: 0, a: 0, role: 'blue', ejectedUntil: 0, revealed: false,
-    metElders: !!prof.metElders, yarning: null, flagHold: false, lastMove: now(), lastChat: 0, lastSabotage: 0, lastReact: 0, seenInfo: new Set(), teleportGrace: now() + 2000,
+    avatar: prof.avatar || null, metElders: !!prof.metElders, yarning: null, flagHold: false, lastMove: now(), lastChat: 0, lastSabotage: 0, lastReact: 0, seenInfo: new Set(), teleportGrace: now() + 2000,
   };
   players.set(p.id, p);
   send(p, {
     t: 'welcome', you: { id: p.id, name: p.name, username: p.username, role: p.role, x: p.x, z: p.z, profile: prof },
     serverName: NAME, mainPublicUrl: MAIN_PUBLIC, ice: ICE, dev: DEV, campaign, rules: RULES,
-    players: [...players.values()].map((o) => ({ id: o.id, name: o.name, username: o.username })),
+    players: [...players.values()].map((o) => ({ id: o.id, name: o.name, username: o.username, avatar: o.avatar })),
     meeting: meeting && { calledBy: meeting.calledBy, endsAt: meeting.endsAt, candidates: [...meeting.voters].map((id) => ({ id, name: players.get(id)?.name })) },
   });
   send(p, stageState());
-  broadcast({ t: 'pjoin', id: p.id, name: p.name, username: p.username }, p);
+  broadcast({ t: 'pjoin', id: p.id, name: p.name, username: p.username, avatar: p.avatar }, p);
   if (campaign.flagRaised) send(p, { t: 'flagRaised', quiet: true });
 
   ws.on('message', (raw) => {
