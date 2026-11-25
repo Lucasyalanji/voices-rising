@@ -13,6 +13,7 @@ import { Character, Crowd, TEAM, hashString } from './characters.js';
 import { canvasTexture } from './materials.js';
 import { LiveAudio } from './live.js';
 import { Music } from './music.js';
+import { Birds } from './birds.js';
 import * as UI from './ui.js';
 
 const { $, el, toast, chatLine } = UI;
@@ -65,6 +66,7 @@ const cam = { yaw: 0.15, pitch: 0.42, dist: 17 };
 let ws = null;
 let live = null;
 let music = null;
+let birds = null;
 const send = (m) => ws?.readyState === 1 && ws.send(JSON.stringify(m));
 
 // ---------------- Boot ----------------
@@ -78,6 +80,7 @@ async function boot() {
   await new Promise((r) => setTimeout(r, 30));
   world = buildWorld(scene);
   landmarks = buildLandmarks(scene, world.colliders);
+  birds = new Birds(scene);
   crowd = new Crowd(scene, 900);
   locals = new Crowd(scene, MAP.RALLIES.length * 6);
   buildPoliticians();
@@ -1058,6 +1061,7 @@ function frame(now) {
     if (age > 2.2) { scene.remove(f.s); f.s.material.map.dispose(); floaters.splice(i, 1); }
   }
   music?.update(dt, { me, march: S.march, stageBusy: !!S.stage.performer && !amPerforming(), playing: S.playing });
+  birds?.update(dt, t, S.playing ? me : { x: 1e6, z: 1e6 });
   updateCrowds(t);
   updateCamera(dt, t);
   const focus = S.playing ? me : { x: 0, z: -60 };
