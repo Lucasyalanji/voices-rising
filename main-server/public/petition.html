@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sign the Petition — Voices Rising</title>
+<style>
+  :root { --bg:#0e1420; --card:#161f30; --ink:#eef2fa; --muted:#9aa7bf; --blue:#3d8bff; --gold:#ffcc33; --red:#d4202a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: radial-gradient(ellipse at top, #1b2a48, var(--bg) 60%); color: var(--ink); min-height: 100vh; }
+  .flagbar { height: 8px; background: linear-gradient(#000 0 50%, var(--red) 50% 100%); position: relative; }
+  .flagbar::after { content:""; position:absolute; left:50%; top:0; width:8px; height:8px; margin-left:-4px; border-radius:50%; background: var(--gold); }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: clamp(28px, 6vw, 42px); margin: 8px 0 4px; letter-spacing: -0.02em; }
+  .ack { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+  .card { background: var(--card); border: 1px solid #263450; border-radius: 16px; padding: 22px; margin: 18px 0; }
+  .petition { font-size: 18px; line-height: 1.55; }
+  .meter { height: 14px; border-radius: 99px; background: #0b111c; overflow: hidden; margin: 10px 0 6px; }
+  .meter > i { display:block; height:100%; width:0; background: linear-gradient(90deg, var(--blue), #7cc0ff); transition: width .8s; }
+  .stats { display:flex; justify-content: space-between; color: var(--muted); font-size: 14px; }
+  label { display:block; font-size: 14px; color: var(--muted); margin: 14px 0 6px; }
+  input, textarea { width:100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #2e3d5c; background:#0d1422; color: var(--ink); font-size: 16px; }
+  textarea { min-height: 70px; resize: vertical; }
+  .check { display:flex; gap:10px; align-items:flex-start; margin-top: 16px; font-size: 14px; color: var(--ink); }
+  .check input { width:auto; margin-top: 3px; }
+  button { margin-top: 18px; width:100%; padding: 14px; font-size: 17px; font-weight: 700; border:0; border-radius: 12px; background: var(--blue); color:#fff; cursor:pointer; }
+  button:disabled { opacity: .6; }
+  .msg { margin-top: 14px; min-height: 22px; font-weight: 600; }
+  .ok { color: #7be08f; } .err { color: #ff8a8a; }
+  .small { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .ref { color: var(--gold); }
+</style>
+</head>
+<body>
+<div class="flagbar" aria-hidden="true"></div>
+<main>
+  <div class="ack">We acknowledge the Gadigal people of the Eora Nation, Traditional Custodians of the land where this movement gathers. Always was, always will be.</div>
+  <h1 id="title">Hear Indigenous Youth Voices</h1>
+  <p class="ack" id="refline" hidden>Shared with you by <span class="ref" id="refname"></span> from Voices Rising.</p>
+
+  <div class="card"><div class="petition" id="text"></div></div>
+
+  <div class="card">
+    <strong id="count">— signatures</strong>
+    <div class="meter"><i id="bar"></i></div>
+    <div class="stats"><span id="next"></span><span id="zone"></span></div>
+    <p class="small">Every 10 real signatures turns a councillor in the game from red to blue. Every 100 opens the next part of the city.</p>
+  </div>
+
+  <form class="card" id="form" autocomplete="on">
+    <label for="fullName">First and last name *</label>
+    <input id="fullName" name="fullName" required maxlength="80" autocomplete="name" />
+    <label for="postcode">Postcode *</label>
+    <input id="postcode" name="postcode" required inputmode="numeric" pattern="\d{4}" maxlength="4" autocomplete="postal-code" />
+    <label for="email">Email (optional — only used to stop duplicate signatures)</label>
+    <input id="email" name="email" type="email" maxlength="120" autocomplete="email" />
+    <label for="message">Why are you signing? (optional)</label>
+    <textarea id="message" name="message" maxlength="300"></textarea>
+    <div class="check"><input type="checkbox" id="consent" name="consent" required /><label for="consent" style="margin:0;color:inherit">I agree to my name and postcode being counted and presented to the City of Sydney Council and NSW Parliament with this petition.</label></div>
+    <button type="submit" id="btn">Add my voice</button>
+    <div class="msg" id="msg" role="status"></div>
+    <p class="small">We store your name, postcode, optional email and message in the Voices Rising database, and share them with Kowa Collaboration's "Hear Indigenous Youth Voices" survey on Wathaga, a First Nations-led platform that keeps data in Australia. We never publish emails. Contact the organisers to have your signature removed.</p>
+  </form>
+</main>
+<script>
+  const ref = new URLSearchParams(location.search).get('ref') || '';
+  if (ref) { document.getElementById('refline').hidden = false; document.getElementById('refname').textContent = ref; }
+  const $ = (id) => document.getElementById(id);
+  function show(c) {
+    $('count').textContent = c.signatures.toLocaleString() + ' signatures';
+    const goal = Math.max(100, (c.zoneIndex + 1) * 100);
+    $('bar').style.width = Math.min(100, (c.signatures / goal) * 100) + '%';
+    $('next').textContent = c.nextPoliticianIn ? c.nextPoliticianIn + ' more to turn a politician blue' : 'Every politician turned!';
+    $('zone').textContent = c.nextZoneIn ? c.nextZoneIn + ' to open the next zone' : '';
+  }
+  fetch('/api/campaign').then(r => r.json()).then(d => { $('title').textContent = d.petition.title; $('text').textContent = d.petition.text; show(d.campaign); });
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('btn').disabled = true; $('msg').textContent = ''; $('msg').className = 'msg';
+    const body = Object.fromEntries(new FormData(e.target)); body.consent = $('consent').checked; body.ref = ref;
+    try {
+      const r = await fetch('/api/signatures', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Something went wrong');
+      $('msg').textContent = 'Thank you — your voice has been added.'; $('msg').classList.add('ok'); e.target.reset(); show(d.campaign);
+    } catch (err) { $('msg').textContent = err.message; $('msg').classList.add('err'); }
+    $('btn').disabled = false;
+  });
+</script>
+</body>
+</html>

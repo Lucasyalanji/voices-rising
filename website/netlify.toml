@@ -1,0 +1,10 @@
+# Netlify: publish this folder as-is (no build step).
+[build]
+  publish = "."
+
+# Serve the Android app with the right type so phones offer to install it.
+[[headers]]
+  for = "/download/*.apk"
+  [headers.values]
+    Content-Type = "application/vnd.android.package-archive"
+    Content-Disposition = "attachment; filename=\"VoicesRising.apk\""

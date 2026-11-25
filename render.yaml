@@ -1,0 +1,37 @@
+# Render Blueprint: one web service running the main server + a community game server,
+# with a persistent disk for the SQLite database (profiles, signatures, campaign).
+services:
+  - type: web
+    name: voices-rising
+    runtime: node
+    region: singapore          # closest Render region to Sydney
+    plan: starter              # always on (free services sleep and can't have a disk)
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/info
+    disk:
+      name: voices-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "24.11.1"
+      - key: DATA_DIR
+        value: /var/data
+      - key: DEV
+        value: "0"
+      - key: SERVER_NAME
+        value: Gadigal Community Server
+      - key: TOKEN_SECRET
+        generateValue: true
+      - key: ADMIN_KEY
+        generateValue: true
+      - key: WEBHOOK_KEY
+        generateValue: true
+      # Fill these in on Render (Environment tab) to keep the Wathaga survey linked:
+      - key: WATHAGA_SURVEY_ID
+        value: cmwc0ahml000n5s2nabtqjqb5
+      - key: WATHAGA_REF
+        value: Luke
+      - key: WATHAGA_API_KEY
+        sync: false

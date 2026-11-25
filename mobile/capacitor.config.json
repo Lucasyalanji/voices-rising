@@ -1,0 +1,14 @@
+{
+  "appId": "au.voicesrising.app",
+  "appName": "Voices Rising",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true,
+    "allowNavigation": ["*"]
+  },
+  "android": {
+    "appendUserAgent": "VoicesRisingApp",
+    "allowMixedContent": true
+  }
+}

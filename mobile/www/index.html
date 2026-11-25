@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Voices Rising</title>
+<style>
+  :root { --ink: #f3f6fc; --muted: #a8b4ca; --gold: #ffcd00; --blue: #2f7bff; --red: #d4202a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: radial-gradient(ellipse at top, #1b2a48, #0b1020 65%); color: var(--ink); font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif; }
+  main { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); }
+  .flag { width: 96px; height: 48px; background: linear-gradient(#000 0 50%, var(--red) 50%); border-radius: 6px; position: relative; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+  .flag::after { content: ""; position: absolute; left: 50%; top: 50%; width: 24px; height: 24px; margin: -12px; border-radius: 50%; background: var(--gold); }
+  h1 { margin: 0; font-size: 38px; letter-spacing: .06em; text-shadow: 0 3px 0 #1a3f8f; text-align: center; }
+  .tag { margin: -8px 0 0; color: #ffe9a3; letter-spacing: .2em; font-size: 11px; text-transform: uppercase; text-align: center; }
+  .panel { width: min(420px, 100%); background: rgba(14,20,36,.85); border: 2px solid rgba(255,205,0,.55); border-radius: 16px; padding: 16px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #33415f; background: #0a1020; color: var(--ink); font-size: 16px; }
+  button { width: 100%; margin-top: 12px; padding: 14px; border: 0; border-radius: 12px; font-size: 17px; font-weight: 800; color: #fff; background: linear-gradient(#3d8bff, #2563d8); box-shadow: 0 4px 0 #173f8f; }
+  button.ghost { background: transparent; box-shadow: none; border: 1px solid #3a4a6c; font-size: 14px; font-weight: 700; padding: 10px; }
+  #msg { min-height: 20px; margin-top: 10px; font-size: 14px; font-weight: 700; }
+  .ok { color: #7be08f; } .err { color: #ff9b9b; }
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 10px 0 0; }
+  .ack { max-width: 420px; text-align: center; font-size: 11px; color: #e6dcc4; }
+</style>
+</head>
+<body>
+<main>
+  <div class="flag" aria-hidden="true"></div>
+  <h1>VOICES RISING</h1>
+  <p class="tag">Sydney · Gadigal Country · Eora Nation</p>
+  <div class="panel">
+    <label for="server">Game server address</label>
+    <input id="server" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" />
+    <button id="go">Enter the City</button>
+    <button id="reset" class="ghost" type="button">Use the default server</button>
+    <div id="msg" role="status"></div>
+    <p class="hint">Ask whoever runs your community server for its address. On the same Wi-Fi as the host PC it looks like <b>http://192.168.0.110:3000</b>.</p>
+  </div>
+  <p class="ack">We acknowledge the Gadigal people of the Eora Nation, the Traditional Custodians of the land this game is set on.</p>
+</main>
+<script>
+  const DEFAULT = 'http://192.168.0.110:3000';
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  let saved = null;
+  try { saved = localStorage.getItem('vr_server'); } catch {}
+  $('server').value = saved || DEFAULT;
+
+  const normalise = (v) => {
+    v = v.trim().replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(v)) v = 'http://' + v;
+    return v;
+  };
+  async function enter() {
+    const url = normalise($('server').value);
+    $('server').value = url;
+    $('msg').className = ''; $('msg').textContent = 'Connecting…';
+    $('go').disabled = true;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      const r = await fetch(url + '/api/info', { signal: ctrl.signal });
+      clearTimeout(t);
+      const info = await r.json();
+      if (!info.serverName) throw new Error('not a Voices Rising server');
+      try { localStorage.setItem('vr_server', url); } catch {}
+      $('msg').className = 'ok'; $('msg').textContent = `Found "${info.serverName}" — loading Sydney…`;
+      location.href = url + '/';
+    } catch (e) {
+      $('msg').className = 'err';
+      $('msg').textContent = e.name === 'AbortError'
+        ? 'No answer from that address. Check the server is running and your phone is on the same Wi-Fi.'
+        : 'Could not reach a Voices Rising server there (' + e.message + ').';
+      $('go').disabled = false;
+    }
+  }
+  $('go').addEventListener('click', enter);
+  $('server').addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); });
+  $('reset').addEventListener('click', () => { $('server').value = DEFAULT; $('msg').textContent = ''; });
+  // Jump straight into the game with the saved server, unless the player asked to change it.
+  if (saved && !params.has('pick')) enter();
+</script>
+</body>
+</html>

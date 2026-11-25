@@ -1,0 +1,52 @@
+{
+  "_note": "PLACEHOLDER DIALOGUE. Please have local Elders and community (e.g. the Metropolitan Local Aboriginal Land Council) review, rewrite and own these words before release. Characters are fictional.",
+  "elders": [
+    { "id": "aunty", "name": "Aunty Merle", "offset": [-2.6, 1.8], "shirt": "#8a3b2e" },
+    { "id": "uncle", "name": "Uncle Ray", "offset": [2.6, 1.8], "shirt": "#3f5b3a" }
+  ],
+  "intro": [
+    { "who": "aunty", "text": "Welcome, bub. Come sit by the fire. Before you do anything in this city, know where you're standing." },
+    { "who": "aunty", "text": "This is Gadigal land, of the Eora Nation. Always was, always will be. Say it with your chest." },
+    { "who": "aunty", "text": "Culture isn't something locked in a museum. It's how we know who we are — our families, our languages, our stories, and our responsibilities to Country and to each other." },
+    { "who": "uncle", "text": "Our people have cared for this Country for more than sixty thousand years. Every generation carries it forward. Now it's your turn to carry it." },
+    { "who": "uncle", "text": "This place — The Block — has been a heart for our mob in the city for a long time. People came here to find family, to organise, to look after one another." },
+    { "who": "uncle", "text": "In 1938, just up the road at Australian Hall on Elizabeth Street, our people held the Day of Mourning. They stood up when it was hard. You're part of that line." },
+    { "who": "aunty", "text": "Now listen close. A movement is only as strong as its trust. Some will wear blue and smile at you — but they're Reds, spies for the Crown." },
+    { "who": "aunty", "text": "They'll spread rumours and break up your rallies. Watch each other. Yarn it out in the Yarning Circle — press V — and vote them out of the City." },
+    { "who": "uncle", "text": "Lobby with real voices. Get real people to sign the petition — every ten names turns a politician from red to blue. A hundred opens the next part of the city." },
+    { "who": "uncle", "text": "And walk together. A thousand of you and City Council has to listen. Ten thousand, and Macquarie Street belongs to the people." },
+    { "who": "aunty", "text": "When the crowd reaches Town Hall, get up on that stage. Speak, read your poem, play your music. Let them hear your heart." },
+    { "who": "aunty", "text": "Before you go — let's see what you've learnt." }
+  ],
+  "quiz": [
+    {
+      "q": "Whose land is the Sydney CBD on?",
+      "options": ["The Gadigal people of the Eora Nation", "Nobody's — it was empty land", "The Crown's"],
+      "answer": 0,
+      "right": "That's right. Gadigal land. Always was, always will be.",
+      "wrong": "Not quite, bub. It's Gadigal land, of the Eora Nation."
+    },
+    {
+      "q": "What do the colours of the Aboriginal flag stand for?",
+      "options": ["Black for the people, red for the earth and our spiritual connection to it, yellow for the sun", "Night, fire and gold", "They were chosen at random"],
+      "answer": 0,
+      "right": "Deadly. Harold Thomas designed it, and it first flew in 1971.",
+      "wrong": "Black is the people, red is the earth and our spiritual relationship to it, and yellow is the sun — the giver of life."
+    },
+    {
+      "q": "Where was the 1938 Day of Mourning held?",
+      "options": ["Parliament House, Canberra", "Australian Hall, Elizabeth Street, Sydney", "Redfern Oval"],
+      "answer": 1,
+      "right": "Yes. Go visit it — it's marked on your map.",
+      "wrong": "It was at Australian Hall on Elizabeth Street, right here in Sydney. Go and see it."
+    }
+  ],
+  "farewell": [
+    { "who": "uncle", "text": "Go peacefully. Go strong. Look after each other." },
+    { "who": "aunty", "text": "And come back and tell us what you've learnt. We'll be right here by the fire." }
+  ],
+  "again": [
+    { "who": "aunty", "text": "Good to see you again. How's the movement going? Remember — trust is everything." },
+    { "who": "uncle", "text": "Keep getting those signatures. Real voices change minds." }
+  ]
+}

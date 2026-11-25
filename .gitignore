@@ -1,0 +1,12 @@
+node_modules/
+/data/
+/data-*/
+.env
+*.apk
+*.log
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+docs/node_modules/
+docs/render/
+docs/*.pptx

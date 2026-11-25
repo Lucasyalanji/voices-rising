@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Voices Rising: Sydney</title>
+<link rel="stylesheet" href="/css/style.css" />
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- Title / login -->
+<section id="login" class="screen">
+  <div class="brand">
+    <div class="flagbar" aria-hidden="true"><span></span></div>
+    <h1>VOICES RISING</h1>
+    <p class="tagline">Sydney · Gadigal Country · Eora Nation</p>
+  </div>
+  <div class="panel">
+    <div class="tabs" role="tablist">
+      <button type="button" data-tab="login" class="on">Log in</button>
+      <button type="button" data-tab="register">Join the movement</button>
+    </div>
+    <form id="loginForm" autocomplete="on">
+      <label>Username<input name="username" required maxlength="20" autocomplete="username" /></label>
+      <label>Password<input name="password" type="password" required autocomplete="current-password" /></label>
+      <button class="primary" type="submit">Enter the City</button>
+    </form>
+    <form id="registerForm" hidden autocomplete="on">
+      <div class="row">
+        <label>Username<input name="username" required pattern="[A-Za-z0-9_]{3,20}" maxlength="20" autocomplete="username" /></label>
+        <label>Age<input name="age" type="number" min="15" max="25" required /></label>
+      </div>
+      <label>Display name<input name="displayName" maxlength="24" /></label>
+      <label>Mob / community (optional)<input name="mob" maxlength="60" placeholder="e.g. Wiradjuri, Redfern, Western Sydney…" /></label>
+      <label>Password (8+ characters)<input name="password" type="password" minlength="8" required autocomplete="new-password" /></label>
+      <label class="check"><input type="checkbox" name="rules" required /> I'll respect Elders, culture and every player. No hate, no harassment.</label>
+      <button class="primary" type="submit">Create my profile</button>
+    </form>
+    <div id="authMsg" role="status"></div>
+    <p class="server">Playing on <b id="serverName">…</b> — your profile lives on the Voices Rising main server.</p>
+  </div>
+  <p class="ack">We acknowledge the Gadigal people of the Eora Nation, the Traditional Custodians of the land this game is set on, and pay our respects to Elders past and present.</p>
+</section>
+
+<!-- HUD -->
+<section id="hud" hidden>
+  <div id="campaign" class="card"></div>
+  <div id="role"></div>
+  <div id="minimap"><canvas width="190" height="190"></canvas><div id="coords"></div></div>
+  <div id="toasts"></div>
+  <div id="prompt"></div>
+  <div id="holdbar"><i></i></div>
+  <div id="chat"><div id="chatlog"></div><input id="chatin" maxlength="200" placeholder="T to chat · Enter to send" autocomplete="off" /></div>
+  <div id="actions">
+    <button id="btnShare" title="Copy your petition link">✍ Share petition</button>
+    <button id="btnVote" title="Call a Yarning Circle vote (V)">🔥 Vote (V)</button>
+    <button id="btnMap" title="Map (M)">🗺 Map</button>
+    <button id="btnHelp" title="Help (H)">?</button>
+    <button id="btnServer" title="Change game server" hidden>⚙ Server</button>
+  </div>
+  <div id="stagebar" hidden>
+    <div class="who"></div>
+    <div class="line"></div>
+    <div class="btns">
+      <button data-react="fist">✊ <small>1</small></button>
+      <button data-react="heart">❤ <small>2</small></button>
+      <button id="btnMute">🔇 Mute</button>
+      <button id="btnReport">⚑ Report</button>
+      <button id="btnEndSet" hidden>■ End my set</button>
+    </div>
+  </div>
+  <div id="dialogue" hidden>
+    <div class="name"></div>
+    <div class="text"></div>
+    <div class="opts"></div>
+    <div class="next">▼</div>
+  </div>
+  <div id="modal" hidden></div>
+  <div id="bigmap" hidden><canvas></canvas><button class="close">✕</button></div>
+  <div id="ejected" hidden></div>
+  <div id="cinema" hidden><div class="bar top"></div><div class="bar bottom"></div><div class="cine-text"></div></div>
+  <div id="touch">
+    <div id="stick"><i></i></div>
+    <button id="tE">E</button><button id="tJ">⤒</button><button id="tQ" hidden>Q</button>
+  </div>
+</section>
+
+<div id="loading">Loading Sydney…</div>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>

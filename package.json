@@ -1,0 +1,19 @@
+{
+  "name": "voices-rising",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Voices Rising: Sydney - a 3D online youth movement game (main profile server + community game servers)",
+  "type": "module",
+  "scripts": {
+    "main": "node main-server/server.js",
+    "game": "node game-server/server.js",
+    "dev": "node scripts/dev.js",
+    "start": "node scripts/start.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

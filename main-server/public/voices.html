@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Voices from the Stage — Voices Rising</title>
+<style>
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:#0e1420; color:#eef2fa; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { margin: 0 0 6px; } p.sub { color:#9aa7bf; margin-top:0; }
+  article { background:#161f30; border:1px solid #263450; border-radius:14px; padding:18px; margin:14px 0; }
+  .meta { color:#9aa7bf; font-size: 13px; margin-bottom: 8px; }
+  .kind { display:inline-block; padding:2px 8px; border-radius:99px; background:#3d8bff33; color:#9cc7ff; font-size:12px; margin-right:6px; text-transform: uppercase; }
+  pre { white-space: pre-wrap; font-family: Georgia, serif; font-size: 17px; line-height: 1.6; margin: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Voices from the Stage</h1>
+  <p class="sub">Speeches, poems and songs shared on the Town Hall main stage.</p>
+  <div id="list">Loading…</div>
+</main>
+<script>
+  fetch('/api/voices').then(r => r.json()).then(({ voices }) => {
+    const list = document.getElementById('list'); list.textContent = voices.length ? '' : 'No performances yet — be the first.';
+    for (const v of voices) {
+      const a = document.createElement('article');
+      const meta = document.createElement('div'); meta.className = 'meta';
+      const k = document.createElement('span'); k.className = 'kind'; k.textContent = v.kind + (v.live ? ' · live' : '');
+      meta.append(k, `${v.name} — “${v.title || 'Untitled'}” · ${v.listeners} listening · ${v.reactions} ✊`);
+      const pre = document.createElement('pre'); pre.textContent = v.body || '(live performance)';
+      a.append(meta, pre); list.append(a);
+    }
+  });
+</script>
+</body>
+</html>
