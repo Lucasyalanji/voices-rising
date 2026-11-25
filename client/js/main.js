@@ -10,6 +10,7 @@ import { RULES, politicianName } from '/shared/rules.js';
 import { buildWorld } from './world.js';
 import { buildLandmarks } from './landmarks.js';
 import { Character, Crowd, TEAM, hashString, LOOK } from './characters.js';
+import { createGamepad } from './gamepad.js';
 import { canvasTexture } from './materials.js';
 import { LiveAudio } from './live.js';
 import { Music } from './music.js';
@@ -386,6 +387,9 @@ canvas.addEventListener('pointermove', (e) => {
 canvas.addEventListener('pointerup', () => (drag = null));
 canvas.addEventListener('wheel', (e) => { cam.dist = Math.max(6, Math.min(60, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); }, { passive: true });
 
+// Xbox controller
+const pad = createGamepad({ onConnect: (id, on) => S.playing && toast(on ? '🎮 Controller connected. Press View for the button guide.' : '🎮 Controller disconnected.', 'blue') });
+
 // Touch joystick
 const stick = { x: 0, y: 0, id: null };
 const stickEl = $('#stick');
@@ -604,7 +608,7 @@ function openHelp() {
   UI.openModal([
     el('h2', { text: 'How to play' }),
     el('ul', { class: 'help' },
-      ...[['WASD', 'move (Shift to run, Space to jump) · drag mouse to look · wheel to zoom'], ['E', 'talk / yarn with a crowd (hold) / interact'], ['V', 'call the Yarning Circle to vote out a suspected Red spy'], ['Q', 'RED spies only: sabotage a rally or heckle the stage'], ['T', 'chat'], ['1 / 2', 'react to a stage performance ✊ ❤'], ['M', 'map'], ['G', 'toggle graphics quality']]
+      ...[['WASD', 'move (Shift to run, Space to jump) · drag mouse to look · wheel to zoom'], ['E', 'talk / yarn with a crowd (hold) / interact'], ['V', 'call the Yarning Circle to vote out a suspected Red spy'], ['Q', 'RED spies only: sabotage a rally or heckle the stage'], ['T', 'chat'], ['1 / 2', 'react to a stage performance ✊ ❤'], ['M', 'map'], ['G', 'toggle graphics quality'], ['🎮', 'Xbox controller: left stick move (push fully to run) · right stick look · A jump/next · X talk/interact · B back · Y vote · LB sabotage · RB map · LT/RT zoom · D-pad answers, reactions and menus · View help · Menu chat']]
         .map(([k, t]) => el('li', {}, el('kbd', { text: k }), t))),
     el('p', { text: `Goal: grow the Blue movement to ${RULES.MARCH_THRESHOLD.toLocaleString()} to march on City Council, then ${RULES.PARLIAMENT_THRESHOLD.toLocaleString()} to march on Parliament House. Real petition signatures turn politicians blue (${RULES.SIGS_PER_POLITICIAN} each) and open new zones (${RULES.SIGS_PER_ZONE} each).` }),
     el('div', { class: 'row' }, el('button', { class: 'go', text: 'Got it', onclick: UI.closeModal })),
@@ -980,11 +984,11 @@ function updatePlayer(dt) {
     if (keys.has('KeyS') || keys.has('ArrowDown')) f -= 1;
     if (keys.has('KeyD') || keys.has('ArrowRight')) r += 1;
     if (keys.has('KeyA') || keys.has('ArrowLeft')) r -= 1;
-    f -= stick.y; r += stick.x;
+    f -= stick.y + pad.y; r += stick.x + pad.x;
   }
   if (amPerforming()) { f = 0; r = 0; }
   const len = Math.hypot(f, r);
-  const run = keys.has('ShiftLeft') || keys.has('ShiftRight') || Math.hypot(stick.x, stick.y) > 0.9;
+  const run = keys.has('ShiftLeft') || keys.has('ShiftRight') || Math.hypot(stick.x, stick.y) > 0.9 || Math.hypot(pad.x, pad.y) > 0.92;
   const speed = len > 0.1 ? (run ? 15 : 9) * Math.min(1, len) : 0;
   if (len > 0.1) {
     f /= len; r /= len;
@@ -1142,7 +1146,10 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   const t = now / 1000;
+  pad.poll();
   if (S.playing) {
+    if (pad.lookX || pad.lookY) { cam.yaw -= pad.lookX * dt * 2.6; cam.pitch = Math.max(0.08, Math.min(1.25, cam.pitch + pad.lookY * dt * 1.6)); }
+    if (pad.zoom) cam.dist = Math.max(6, Math.min(60, cam.dist * (1 + pad.zoom * dt * 1.5)));
     updatePlayer(dt);
     updateOthers(dt);
     updateStage();
