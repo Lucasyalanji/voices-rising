@@ -240,13 +240,13 @@ footer a { color: #F7CD99; }
       <ol>
         <li>Tap <b>Download for Android</b> below.</li>
         <li>Open the file and allow installing apps from this source when Android asks. The app isn't on Google Play yet.</li>
-        <li>Open <b>Voices Rising</b> and enter your community server's address, then tap <b>Enter the City</b>.</li>
+        <li>Open <b>Voices Rising</b> and tap <b>Enter the City</b>. It connects to the main Voices Rising server; you can also enter your community server's address.</li>
       </ol>
       <a class="btn primary" href="download/VoicesRising.apk" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>
         Download for Android (4 MB)
       </a>
-      <p class="fine">Ask whoever runs your community server for its address. You need a profile for your server, made in the app.</p>
+      <p class="fine">Create your profile in the app the first time you play. Community servers can be added in the app.</p>
     </div>
     <div class="phone" aria-hidden="true">
       <div><div class="flag"></div><b>VOICES RISING</b><small>Sydney · Gadigal Country</small><div class="fake-btn">Enter the City</div></div>
@@ -296,7 +296,7 @@ footer a { color: #F7CD99; }
 
 <script>
   // Set this to your live petition page once the main server is online.
-  const PETITION_URL = "";
+  const PETITION_URL = "https://voices-rising-qnm6.onrender.com/petition";
   const link = document.getElementById("petition-link");
   if (PETITION_URL) { link.href = PETITION_URL; link.target = "_blank"; link.rel = "noopener"; }
   else { link.addEventListener("click", (e) => { e.preventDefault(); link.textContent = "Petition opening soon"; }); }

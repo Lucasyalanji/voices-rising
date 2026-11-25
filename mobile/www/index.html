@@ -35,12 +35,12 @@
     <button id="go">Enter the City</button>
     <button id="reset" class="ghost" type="button">Use the default server</button>
     <div id="msg" role="status"></div>
-    <p class="hint">Ask whoever runs your community server for its address. On the same Wi-Fi as the host PC it looks like <b>http://192.168.0.110:3000</b>.</p>
+    <p class="hint">Ask whoever runs your community server for its address. The main Voices Rising server is <b>https://voices-rising-qnm6.onrender.com</b>.</p>
   </div>
   <p class="ack">We acknowledge the Gadigal people of the Eora Nation, the Traditional Custodians of the land this game is set on.</p>
 </main>
 <script>
-  const DEFAULT = 'http://192.168.0.110:3000';
+  const DEFAULT = 'https://voices-rising-qnm6.onrender.com';
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   let saved = null;
